@@ -1,0 +1,216 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+@layer base {
+  html {
+    font-family: 'Inter', sans-serif;
+  }
+
+  body {
+    @apply bg-slate-900 text-white;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2;
+  }
+
+  .btn-primary {
+    @apply bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg shadow-indigo-600/20;
+  }
+
+  .btn-secondary {
+    @apply bg-emerald-600 text-white hover:bg-emerald-700 shadow-lg shadow-emerald-600/20;
+  }
+
+  .btn-outline {
+    @apply border border-slate-300 hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800;
+  }
+
+  .card {
+    @apply bg-white dark:bg-slate-800 rounded-xl shadow-xl shadow-slate-900/10 overflow-hidden transition-all duration-300;
+  }
+
+  .card-hover {
+    @apply hover:shadow-2xl hover:-translate-y-1;
+  }
+
+  .glass-card {
+    @apply bg-white/10 backdrop-blur-lg border border-white/20 rounded-xl;
+  }
+
+  .input {
+    @apply w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500;
+  }
+
+  .stat-card {
+    @apply bg-gradient-to-br from-slate-800 to-slate-700/50 rounded-xl p-6 border border-slate-700/50 shadow-lg transition-all duration-300 hover:shadow-xl hover:-translate-y-1;
+  }
+
+  .section-title {
+    @apply text-3xl font-bold text-white mb-2 animate-fade-in;
+  }
+
+  .section-subtitle {
+    @apply text-slate-300 mb-6 animate-fade-in;
+  }
+}
+
+.card-shine {
+  position: relative;
+  overflow: hidden;
+  z-index: 1;
+}
+
+.card-shine::before {
+  content: '';
+  position: absolute;
+  top: -100%;
+  left: -100%;
+  width: 300%;
+  height: 300%;
+  background: linear-gradient(
+    115deg,
+    transparent 0%,
+    transparent 40%,
+    rgba(255, 255, 255, 0.2) 45%,
+    rgba(255, 255, 255, 0.4) 50%,
+    rgba(255, 255, 255, 0.2) 55%,
+    transparent 60%,
+    transparent 100%
+  );
+  z-index: 2;
+  transition: transform 1s;
+  pointer-events: none;
+}
+
+.card-shine:hover::before {
+  transform: translate(100%, 100%);
+}
+
+.legendary-card {
+  background: linear-gradient(225deg, #FFD700, #FFC107);
+}
+
+.rare-card {
+  background: linear-gradient(225deg, #3B82F6, #6366F1);
+}
+
+.common-card {
+  background: linear-gradient(225deg, #4B5563, #6B7280);
+}
+
+.stat-animation {
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.stadium-bg {
+  background-image: url('https://images.pexels.com/photos/3042824/pexels-photo-3042824.jpeg');
+  background-size: cover;
+  background-position: center;
+  position: relative;
+}
+
+.stadium-bg::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(to bottom, rgba(15, 23, 42, 0.8), rgba(15, 23, 42, 0.95));
+  z-index: 0;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.5s ease-out forwards;
+}
+
+.profile-header {
+  background: linear-gradient(to bottom right, #1E40AF, #1E3A8A);
+  position: relative;
+  overflow: hidden;
+}
+
+.profile-header::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: url('https://images.pexels.com/photos/3042824/pexels-photo-3042824.jpeg');
+  background-size: cover;
+  background-position: center;
+  opacity: 0.1;
+  z-index: 0;
+}
+
+.profile-avatar {
+  @apply w-32 h-32 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 
+         border-4 border-white/10 relative z-10 transition-transform duration-300
+         hover:scale-105 cursor-pointer;
+}
+
+.profile-stat-card {
+  @apply bg-slate-800/50 backdrop-blur-sm rounded-lg p-4 border border-slate-700/50
+         hover:bg-slate-800/70 transition-all duration-300;
+}
+
+.profile-tab {
+  @apply px-4 py-3 text-sm font-medium transition-colors relative
+         hover:bg-slate-700/50 focus:outline-none focus:ring-2 focus:ring-indigo-500;
+}
+
+.profile-tab-active {
+  @apply bg-slate-700 text-white;
+}
+
+.profile-tab-active::after {
+  content: '';
+  @apply absolute bottom-0 left-0 w-full h-0.5 bg-indigo-500;
+}
+
+.achievement-badge {
+  @apply w-16 h-16 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600
+         flex items-center justify-center text-2xl relative
+         hover:scale-105 transition-transform duration-300 cursor-help;
+}
+
+.achievement-tooltip {
+  @apply absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2
+         bg-slate-800 text-white text-xs px-2 py-1 rounded
+         opacity-0 invisible group-hover:opacity-100 group-hover:visible
+         transition-all duration-200 whitespace-nowrap z-50;
+}
+
+.profile-grid {
+  @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6;
+}

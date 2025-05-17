@@ -1,0 +1,14 @@
+[package]
+name = "suisports_legends"
+edition = "2024"
+published-at = "0x36ef13d982a8e53a08b782acedb6df469437de558ff9ed64cdc81eaf4750f43d"
+
+[dependencies]
+Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "framework/testnet" }
+
+[addresses]
+suisports_legends = "0x0"
+
+[dev-dependencies]
+
+[dev-addresses]
