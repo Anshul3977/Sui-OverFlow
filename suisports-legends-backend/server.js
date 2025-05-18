@@ -13,7 +13,7 @@ app.get('/nft/:objectId', async (req, res) => {
         const { objectId } = req.params;
         const nft = await client.getObject({
             id: objectId,
-            options: { showContent: true },
+            options: { showContent: true, showPreviousTransaction: true },
         });
         if (nft.error || !nft.data) return res.status(404).json({ error: 'NFT not found' });
         const fields = nft.data.content.fields;
@@ -21,7 +21,7 @@ app.get('/nft/:objectId', async (req, res) => {
             objectId,
             name: fields.name,
             rarity: fields.rarity,
-            stats: fields.stats ? parseInt(fields.stats) : 0, // Fallback to 0 if stats is missing
+            stats: fields.stats ? parseInt(fields.stats) : 0,
             image_url: fields.image_url
         });
     } catch (error) {
@@ -32,20 +32,34 @@ app.get('/nft/:objectId', async (req, res) => {
 app.get('/nfts/:address', async (req, res) => {
     try {
         const { address } = req.params;
-        const packageId = '0x2f4742355f35966a168aaa58eaecccc3c7146016ecec2a5725d56d2bd99d4645'; // New package ID
+        const packageId = '0x2f4742355f35966a168aaa58eaecccc3c7146016ecec2a5725d56d2bd99d4645';
+        // Step 1: Get the list of owned objects
         const objects = await client.getOwnedObjects({
             owner: address,
-            options: { showContent: true },
+            options: { showContent: true, showPreviousTransaction: true },
         });
-        const nfts = objects.data
-            .filter(obj => obj.data?.content?.type === `${packageId}::sports_nft::SportsNFT`) // Filter by new package ID
-            .map(obj => ({
-                objectId: obj.data.objectId,
-                name: obj.data.content.fields.name,
-                rarity: obj.data.content.fields.rarity,
-                stats: obj.data.content.fields.stats ? parseInt(obj.data.content.fields.stats) : 0, // Fallback to 0 if stats is missing
-                image_url: obj.data.content.fields.image_url
-            }));
+        const nftIds = objects.data
+            .filter(obj => obj.data?.content?.type === `${packageId}::sports_nft::SportsNFT`)
+            .map(obj => obj.data.objectId);
+
+        // Step 2: Fetch the latest state of each NFT individually
+        const nfts = [];
+        for (const objectId of nftIds) {
+            const nft = await client.getObject({
+                id: objectId,
+                options: { showContent: true, showPreviousTransaction: true },
+            });
+            if (nft.error || !nft.data) continue;
+            const fields = nft.data.content.fields;
+            nfts.push({
+                objectId,
+                name: fields.name,
+                rarity: fields.rarity,
+                stats: fields.stats ? parseInt(fields.stats) : 0,
+                image_url: fields.image_url
+            });
+        }
+
         res.json(nfts);
     } catch (error) {
         res.status(500).json({ error: error.message });
