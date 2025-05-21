@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Menu, X, Ticket as CricketBat, Bell, User } from 'lucide-react';
+import { Menu, Bell, User } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useWallet } from '../contexts/WalletContext';
 import Logo from './Logo';
@@ -10,7 +10,7 @@ interface NavbarProps {
 }
 
 const Navbar: React.FC<NavbarProps> = ({ toggleMobileMenu }) => {
-  const { connected, connectWallet, balance, userAddress } = useWallet();
+  const { connected, connectWallet, disconnectWallet, balance, userAddress } = useWallet();
   const [isScrolled, setIsScrolled] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -66,7 +66,7 @@ const Navbar: React.FC<NavbarProps> = ({ toggleMobileMenu }) => {
                 >
                   <span className="text-sm font-medium text-slate-300 mr-1">Balance:</span>
                   <span className="text-sm font-semibold text-white">
-                    {balance} <span className="text-indigo-400">SUI</span>
+                    {balance.toFixed(2)} <span className="text-indigo-400">SUI</span>
                   </span>
                 </motion.div>
 
@@ -125,7 +125,7 @@ const Navbar: React.FC<NavbarProps> = ({ toggleMobileMenu }) => {
                         className="block w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-slate-700"
                         onClick={() => {
                           setShowProfileMenu(false);
-                          // Disconnect wallet logic here
+                          disconnectWallet(); // Fixed: Call disconnectWallet
                         }}
                       >
                         Disconnect Wallet

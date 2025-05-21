@@ -1,4 +1,6 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { getFullnodeUrl, SuiClient } from '@mysten/sui.js/client';
+import { WalletKitProvider, ConnectModal, useWalletKit } from '@mysten/wallet-kit';
 
 interface WalletContextType {
   connected: boolean;
@@ -8,6 +10,7 @@ interface WalletContextType {
   userAddress: string;
   showConnectModal: boolean;
   setShowConnectModal: (show: boolean) => void;
+  refreshBalance: () => void; // Add refreshBalance method
 }
 
 const WalletContext = createContext<WalletContextType>({
@@ -18,6 +21,7 @@ const WalletContext = createContext<WalletContextType>({
   userAddress: '',
   showConnectModal: false,
   setShowConnectModal: () => {},
+  refreshBalance: () => {},
 });
 
 export const useWallet = () => useContext(WalletContext);
@@ -27,35 +31,94 @@ interface WalletProviderProps {
 }
 
 export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
-  const [connected, setConnected] = useState(false);
-  const [balance, setBalance] = useState(0);
-  const [userAddress, setUserAddress] = useState('');
   const [showConnectModal, setShowConnectModal] = useState(false);
 
-  // Check for stored connection on mount
-  useEffect(() => {
-    const storedConnection = localStorage.getItem('walletConnected');
-    if (storedConnection === 'true') {
-      // In a real app, we would validate the connection here
-      setConnected(true);
-      setUserAddress('0x7f34374a3468c1d6bc6e9ab9fb6319bb');
-      setBalance(100.5);
+  const suiClient = new SuiClient({
+    url: getFullnodeUrl('testnet'),
+  });
+
+  return (
+    <WalletKitProvider>
+      <WalletContextInner
+        suiClient={suiClient}
+        showConnectModal={showConnectModal}
+        setShowConnectModal={setShowConnectModal}
+      >
+        {children}
+      </WalletContextInner>
+    </WalletKitProvider>
+  );
+};
+
+interface WalletContextInnerProps {
+  children: React.ReactNode;
+  suiClient: SuiClient;
+  showConnectModal: boolean;
+  setShowConnectModal: (show: boolean) => void;
+}
+
+const WalletContextInner: React.FC<WalletContextInnerProps> = ({
+  children,
+  suiClient,
+  showConnectModal,
+  setShowConnectModal,
+}) => {
+  const walletKit = useWalletKit();
+  const [connected, setConnected] = useState<boolean>(false);
+  const [balance, setBalance] = useState<number>(0);
+  const [userAddress, setUserAddress] = useState<string>('');
+
+  const fetchBalance = async (address: string) => {
+    try {
+      const balanceData = await suiClient.getBalance({ owner: address });
+      if (balanceData && 'totalBalance' in balanceData) {
+        const balanceInSui = Number(balanceData.totalBalance) / 1_000_000_000;
+        setBalance(Number.isFinite(balanceInSui) ? balanceInSui : 0);
+      } else {
+        console.error('Invalid balance data:', balanceData);
+        setBalance(0);
+      }
+    } catch (error) {
+      console.error('Error fetching balance:', error);
+      setBalance(0);
     }
-  }, []);
+  };
+
+  useEffect(() => {
+    if (walletKit.currentAccount) {
+      const address = walletKit.currentAccount.address;
+      setConnected(true);
+      setUserAddress(address);
+      fetchBalance(address);
+    } else {
+      setConnected(false);
+      setUserAddress('');
+      setBalance(0);
+    }
+  }, [walletKit.currentAccount, suiClient]);
 
   const connectWallet = () => {
-    // In a real app, this would integrate with the Sui wallet
-    setConnected(true);
-    setUserAddress('0x7f34374a3468c1d6bc6e9ab9fb6319bb');
-    setBalance(100.5);
-    localStorage.setItem('walletConnected', 'true');
+    setShowConnectModal(true);
   };
 
   const disconnectWallet = () => {
+    try {
+      if (walletKit.disconnect) {
+        walletKit.disconnect();
+      }
+    } catch (error) {
+      console.error('Error disconnecting wallet:', error);
+    }
     setConnected(false);
     setUserAddress('');
     setBalance(0);
-    localStorage.removeItem('walletConnected');
+    setShowConnectModal(false);
+  };
+
+  const refreshBalance = () => {
+    if (userAddress) {
+      fetchBalance(userAddress);
+    }
   };
 
   const value = {
@@ -66,11 +129,20 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     userAddress,
     showConnectModal,
     setShowConnectModal,
+    refreshBalance,
   };
 
   return (
     <WalletContext.Provider value={value}>
       {children}
+      {showConnectModal && (
+        <ConnectModal
+          open={showConnectModal}
+          onClose={() => setShowConnectModal(false)}
+        />
+      )}
     </WalletContext.Provider>
   );
 };
+
+export default WalletProvider;

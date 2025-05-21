@@ -1,84 +1,115 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Search, Filter, TrendingUp, ArrowUpDown, Tag } from 'lucide-react';
 import MarketplaceCard from '../components/MarketplaceCard';
+import { useWallet } from '../contexts/WalletContext';
+import { useWalletKit } from '@mysten/wallet-kit';
+
+interface Listing {
+  objectId: string;
+  name: string;
+  team: string;
+  position: string;
+  image: string;
+  rarity: 'legendary' | 'rare' | 'common';
+  price: number;
+  seller: string;
+}
 
 const Marketplace: React.FC = () => {
+  const { connected, userAddress, balance, refreshBalance } = useWallet();
+  const walletKit = useWalletKit();
   const [searchQuery, setSearchQuery] = useState('');
   const [filterRarity, setFilterRarity] = useState<'all' | 'legendary' | 'rare' | 'common'>('all');
   const [filterPosition, setFilterPosition] = useState<string>('all');
   const [sortBy, setSortBy] = useState<string>('default');
   const [showFilters, setShowFilters] = useState(false);
+  const [listings, setListings] = useState<Listing[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
-  // Mock marketplace listings
-  const listings = [
-    {
-      id: '1',
-      name: 'MS Dhoni',
-      team: 'Chennai Super Kings',
-      position: 'Wicket-keeper',
-      image: 'https://images.pexels.com/photos/3628912/pexels-photo-3628912.jpeg',
-      rarity: 'legendary' as const,
-      price: 25.5,
-      seller: '0x7f34374a3468c1d6bc6e9ab9fb6319bb',
-    },
-    {
-      id: '2',
-      name: 'Ben Stokes',
-      team: 'Rajasthan Royals',
-      position: 'All-rounder',
-      image: 'https://images.pexels.com/photos/15799366/pexels-photo-15799366.jpeg',
-      rarity: 'rare' as const,
-      price: 12.8,
-      seller: '0x9a12bc3d4e5f6789abcdef0123456789',
-    },
-    {
-      id: '3',
-      name: 'David Warner',
-      team: 'Delhi Capitals',
-      position: 'Batsman',
-      image: 'https://images.pexels.com/photos/15799367/pexels-photo-15799367.jpeg',
-      rarity: 'rare' as const,
-      price: 15.2,
-      seller: '0xabcdef0123456789abcdef0123456789',
-    },
-    {
-      id: '4',
-      name: 'Pat Cummins',
-      team: 'Kolkata Knight Riders',
-      position: 'Bowler',
-      image: 'https://images.pexels.com/photos/9815925/pexels-photo-9815925.jpeg',
-      rarity: 'common' as const,
-      price: 8.5,
-      seller: '0x123456789abcdef0123456789abcdef',
-    },
-  ];
+  useEffect(() => {
+    fetch('http://localhost:3000/marketplace')
+      .then((res) => res.json())
+      .then((data) => setListings(data))
+      .catch((err) => {
+        console.error('Error fetching marketplace listings:', err);
+        setListings([]);
+      });
+  }, []);
 
-  // Filter and sort listings
-  const filteredListings = listings.filter(listing => {
-    if (searchQuery && !listing.name.toLowerCase().includes(searchQuery.toLowerCase())) {
-      return false;
+  const handleBuy = async (listing: Listing) => {
+    setError(null);
+    setSuccess(null);
+
+    if (!connected || !userAddress) {
+      setError('Please connect your wallet to purchase NFTs.');
+      return;
     }
-    if (filterRarity !== 'all' && listing.rarity !== filterRarity) {
-      return false;
+
+    if (balance < listing.price) {
+      setError(
+        `Insufficient balance! You need ${listing.price} SUI, but you only have ${balance.toFixed(
+          2
+        )} SUI. Add more test SUI using the testnet faucet.`
+      );
+      return;
     }
-    if (filterPosition !== 'all' && listing.position !== filterPosition) {
-      return false;
+
+    try {
+      const response = await fetch('http://localhost:3000/purchase-nft', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ buyerAddress: userAddress, objectId: listing.objectId }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create purchase transaction');
+      }
+
+      const { transaction } = data;
+      const result = await walletKit.signAndExecuteTransactionBlock({
+        transactionBlock: transaction,
+      });
+
+      if (result) {
+        setSuccess(`Successfully purchased ${listing.name} for ${listing.price} SUI!`);
+        setListings(listings.filter((l) => l.objectId !== listing.objectId));
+        refreshBalance();
+      }
+    } catch (error) {
+      console.error('Error purchasing NFT:', error);
+      setError('Failed to purchase NFT. Please try again.');
     }
-    return true;
-  }).sort((a, b) => {
-    switch (sortBy) {
-      case 'price-asc':
-        return a.price - b.price;
-      case 'price-desc':
-        return b.price - a.price;
-      case 'rarity':
-        const rarityOrder = { legendary: 0, rare: 1, common: 2 };
-        return rarityOrder[a.rarity] - rarityOrder[b.rarity];
-      default:
-        return 0;
-    }
-  });
+  };
+
+  const filteredListings = listings
+    .filter((listing) => {
+      if (searchQuery && !listing.name.toLowerCase().includes(searchQuery.toLowerCase())) {
+        return false;
+      }
+      if (filterRarity !== 'all' && listing.rarity !== filterRarity) {
+        return false;
+      }
+      if (filterPosition !== 'all' && listing.position !== filterPosition) {
+        return false;
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      switch (sortBy) {
+        case 'price-asc':
+          return a.price - b.price;
+        case 'price-desc':
+          return b.price - a.price;
+        case 'rarity':
+          const rarityOrder = { legendary: 0, rare: 1, common: 2 };
+          return rarityOrder[a.rarity] - rarityOrder[b.rarity];
+        default:
+          return 0;
+      }
+    });
 
   const positions = ['Batsman', 'Bowler', 'All-rounder', 'Wicket-keeper'];
   const rarities = ['legendary', 'rare', 'common'];
@@ -86,14 +117,14 @@ const Marketplace: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto">
       <div className="mb-6">
-        <motion.h1 
+        <motion.h1
           className="text-3xl font-bold text-white mb-2"
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
         >
           NFT Marketplace
         </motion.h1>
-        <motion.p 
+        <motion.p
           className="text-slate-400"
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -101,9 +132,30 @@ const Marketplace: React.FC = () => {
         >
           Buy and sell player cards using SUI tokens
         </motion.p>
+        {connected && (
+          <motion.p
+            className="text-slate-300"
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+          >
+            Your Balance: {balance.toFixed(2)} SUI
+          </motion.p>
+        )}
       </div>
 
-      <motion.div 
+      {error && (
+        <div className="mb-4 p-4 bg-red-600 text-white rounded-lg">
+          {error}
+        </div>
+      )}
+      {success && (
+        <div className="mb-4 p-4 bg-green-600 text-white rounded-lg">
+          {success}
+        </div>
+      )}
+
+      <motion.div
         className="bg-slate-800 p-4 rounded-xl border border-slate-700 mb-6"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -119,7 +171,7 @@ const Marketplace: React.FC = () => {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          
+
           <div className="flex items-center gap-2">
             <select
               className="bg-slate-700 text-white px-3 py-2 rounded-lg border border-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -131,7 +183,7 @@ const Marketplace: React.FC = () => {
               <option value="price-desc">Price: High to Low</option>
               <option value="rarity">Rarity</option>
             </select>
-            
+
             <button
               className="btn btn-outline text-white px-3 py-2 flex items-center gap-2"
               onClick={() => setShowFilters(!showFilters)}
@@ -141,9 +193,9 @@ const Marketplace: React.FC = () => {
             </button>
           </div>
         </div>
-        
+
         {showFilters && (
-          <motion.div 
+          <motion.div
             className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 pt-4 border-t border-slate-700"
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
@@ -177,7 +229,7 @@ const Marketplace: React.FC = () => {
                 ))}
               </div>
             </div>
-            
+
             <div>
               <p className="text-sm text-slate-400 mb-2">Rarity</p>
               <div className="flex flex-wrap gap-2">
@@ -221,14 +273,21 @@ const Marketplace: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-8">
         {filteredListings.map((listing) => (
           <MarketplaceCard
-            key={listing.id}
-            {...listing}
-            onBuy={() => console.log(`Buy card ${listing.id}`)}
+            key={listing.objectId}
+            id={listing.objectId}
+            name={listing.name}
+            team={listing.team}
+            position={listing.position}
+            image={listing.image}
+            rarity={listing.rarity}
+            price={listing.price}
+            seller={listing.seller}
+            onBuy={() => handleBuy(listing)}
           />
         ))}
       </div>
 
-      <motion.div 
+      <motion.div
         className="bg-slate-800 rounded-xl p-6 border border-slate-700"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -237,26 +296,26 @@ const Marketplace: React.FC = () => {
           <TrendingUp size={20} className="text-green-500" />
           <h3 className="text-xl font-bold text-white">Market Stats</h3>
         </div>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="bg-slate-700 rounded-lg p-4">
             <p className="text-sm text-slate-400 mb-1">24h Volume</p>
             <p className="text-2xl font-bold text-white">1,245 SUI</p>
             <span className="text-xs text-green-400">+12.5%</span>
           </div>
-          
+
           <div className="bg-slate-700 rounded-lg p-4">
             <p className="text-sm text-slate-400 mb-1">Floor Price</p>
             <p className="text-2xl font-bold text-white">8.5 SUI</p>
             <span className="text-xs text-red-400">-2.3%</span>
           </div>
-          
+
           <div className="bg-slate-700 rounded-lg p-4">
             <p className="text-sm text-slate-400 mb-1">Listed Cards</p>
             <p className="text-2xl font-bold text-white">324</p>
             <span className="text-xs text-green-400">+5.8%</span>
           </div>
-          
+
           <div className="bg-slate-700 rounded-lg p-4">
             <p className="text-sm text-slate-400 mb-1">Unique Owners</p>
             <p className="text-2xl font-bold text-white">156</p>

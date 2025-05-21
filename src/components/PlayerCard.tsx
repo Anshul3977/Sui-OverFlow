@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Star, Activity } from 'lucide-react';
 
-export type PlayerRarity = 'common' | 'rare' | 'legendary';
+export type PlayerRarity = 'common' | 'rare' | 'epic' | 'legendary';
 
 export interface PlayerCardProps {
   id: string;
@@ -31,11 +31,18 @@ const PlayerCard: React.FC<PlayerCardProps> = ({
   selectedForTeam,
   onClick,
 }) => {
+  const [showAllStats, setShowAllStats] = useState(false);
+
   const rarityConfig = {
     legendary: {
       borderColor: 'border-yellow-400',
       gradientClass: 'bg-gradient-to-br from-yellow-400/20 to-yellow-600/20',
       stars: 3
+    },
+    epic: {
+      borderColor: 'border-purple-400',
+      gradientClass: 'bg-gradient-to-br from-purple-400/20 to-purple-600/20',
+      stars: 2
     },
     rare: {
       borderColor: 'border-indigo-400',
@@ -49,14 +56,16 @@ const PlayerCard: React.FC<PlayerCardProps> = ({
     }
   };
 
+  const config = rarityConfig[rarity] || rarityConfig.common;
+
   return (
     <motion.div
-      className={`card relative border-2 ${rarityConfig[rarity].borderColor} ${selectedForTeam ? 'ring-2 ring-emerald-500' : ''}`}
+      className={`card relative border-2 ${config.borderColor} ${selectedForTeam ? 'ring-2 ring-emerald-500' : ''}`}
       whileHover={{ y: -5, scale: 1.02 }}
       transition={{ duration: 0.2 }}
       onClick={onClick}
     >
-      <div className={`h-2 ${rarityConfig[rarity].gradientClass}`}></div>
+      <div className={`h-2 ${config.gradientClass}`}></div>
       
       <div className="p-4">
         <div className="relative aspect-[3/4] overflow-hidden rounded-lg mb-3">
@@ -66,7 +75,7 @@ const PlayerCard: React.FC<PlayerCardProps> = ({
             className="w-full h-full object-cover"
           />
           <div className="absolute top-2 right-2 flex gap-0.5">
-            {[...Array(rarityConfig[rarity].stars)].map((_, i) => (
+            {[...Array(config.stars)].map((_, i) => (
               <Star key={i} size={16} className="text-yellow-400 fill-yellow-400" />
             ))}
           </div>
@@ -78,31 +87,42 @@ const PlayerCard: React.FC<PlayerCardProps> = ({
         <h3 className="font-bold text-slate-800 dark:text-white">{name}</h3>
         <p className="text-sm text-slate-600 dark:text-slate-400 mb-2">{position}</p>
         
-        {/* Key Stats Display */}
+        {/* Key Stats Display - Always show Runs and Wickets */}
         <div className="grid grid-cols-2 gap-2 mb-3">
-          {stats.runs !== undefined && (
-            <div className="bg-slate-100 dark:bg-slate-700/50 p-2 rounded">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Runs</p>
-              <p className="font-medium dark:text-white">{stats.runs}</p>
-            </div>
-          )}
-          {stats.wickets !== undefined && (
-            <div className="bg-slate-100 dark:bg-slate-700/50 p-2 rounded">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Wickets</p>
-              <p className="font-medium dark:text-white">{stats.wickets}</p>
-            </div>
-          )}
+          <div className="bg-slate-100 dark:bg-slate-700/50 p-2 rounded">
+            <p className="text-xs text-slate-500 dark:text-slate-400">Runs</p>
+            <p className="font-bold text-lg text-black dark:text-slate-200">{stats.runs ?? 0}</p>
+          </div>
+          <div className="bg-slate-100 dark:bg-slate-700/50 p-2 rounded">
+            <p className="text-xs text-slate-500 dark:text-slate-400">Wickets</p>
+            <p className="font-bold text-lg text-black dark:text-slate-200">{stats.wickets ?? 0}</p>
+          </div>
         </div>
+        
+        {/* Additional Stats on Click */}
+        {showAllStats && (
+          <motion.div
+            className="bg-slate-100 dark:bg-slate-700/50 p-2 rounded mb-3"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            transition={{ duration: 0.3 }}
+          >
+            <p className="text-xs text-slate-500 dark:text-slate-400">Catches</p>
+            <p className="font-medium text-black dark:text-slate-200">{stats.catches ?? 0}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">Average</p>
+            <p className="font-medium text-black dark:text-slate-200">{stats.average ?? 0}</p>
+          </motion.div>
+        )}
         
         <button 
           className="w-full text-sm text-indigo-500 hover:text-indigo-400 transition-colors flex items-center justify-center gap-1"
           onClick={(e) => {
             e.stopPropagation();
-            // Add more stats view logic here
+            setShowAllStats(!showAllStats);
           }}
         >
           <Activity size={14} />
-          View All Stats
+          {showAllStats ? 'Hide Stats' : 'View All Stats'}
         </button>
       </div>
       

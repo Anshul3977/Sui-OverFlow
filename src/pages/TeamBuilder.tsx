@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Users, AlertCircle, Check, Trophy } from 'lucide-react';
 import PlayerCard, { PlayerRarity } from '../components/PlayerCard';
@@ -20,40 +20,72 @@ interface Player {
 
 const TeamBuilder: React.FC = () => {
   const [selectedPlayers, setSelectedPlayers] = useState<Player[]>([]);
-  
-  // Mock available players
-  const availablePlayers: Player[] = [
-    {
-      id: '1',
-      name: 'Virat Kohli',
-      team: 'Royal Challengers',
-      position: 'Batsman',
-      image: 'https://images.pexels.com/photos/3628912/pexels-photo-3628912.jpeg',
-      rarity: 'legendary',
-      stats: {
-        runs: 874,
-        average: 49.8,
-        catches: 12
-      }
-    },
-    {
-      id: '2',
-      name: 'Jasprit Bumrah',
-      team: 'Mumbai Indians',
-      position: 'Bowler',
-      image: 'https://images.pexels.com/photos/15799366/pexels-photo-15799366.jpeg',
-      rarity: 'rare',
-      stats: {
-        wickets: 28,
-        average: 22.3
-      }
-    }
-  ];
+  const [availablePlayers, setAvailablePlayers] = useState<Player[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const address = '0x8913ee17391e7d92d11221bf571c8ef7f51820f5ff08b3a44f3f3e7b5a9da0e1';
+    fetch(`http://localhost:3000/nfts/${address}`)
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+        return response.json();
+      })
+      .then(data => {
+        console.log('Fetched NFTs:', data);
+        const mappedPlayers = data.map((nft: any) => {
+          const team = nft.name.includes('Rohit') || nft.name.includes('Jasprit') ? 'Mumbai Indians' : 
+                      nft.name.includes('Rishabh') ? 'Delhi Capitals' : 
+                      nft.name.includes('Ravindra') ? 'Chennai Super Kings' : 
+                      nft.name.includes('MS Dhoni') ? 'Chennai Super Kings' : 
+                      'Sunrisers Hyderabad';
+
+          const position = nft.stats > 50 ? 'Bowler' : 
+                          nft.stats > 45 && nft.stats <= 50 ? 'All-rounder' : 
+                          nft.stats === 45 ? 'Batsman' : 
+                          'Wicket-keeper';
+
+          const isJadeja = nft.name.includes('Ravindra');
+          const runs = isJadeja ? 300 : (position === 'Batsman' || position === 'Wicket-keeper' ? Math.round(nft.stats * 10) : 0);
+
+          return {
+            id: nft.objectId,
+            name: nft.name.replace(' NFT', ''),
+            team: team,
+            position: position,
+            image: nft.image_url,
+            rarity: nft.rarity.toLowerCase() as PlayerRarity,
+            stats: {
+              runs: runs,
+              wickets: position === 'Bowler' ? Math.round(nft.stats / 2) : 0,
+              catches: position === 'Wicket-keeper' ? Math.round(nft.stats / 3) : Math.round(nft.stats / 5),
+              average: position === 'Batsman' || position === 'Wicket-keeper' ? nft.stats : 
+                       position === 'Bowler' ? nft.stats / 2 : 0,
+            }
+          };
+        });
+        console.log('Mapped Players:', mappedPlayers);
+        setAvailablePlayers(mappedPlayers);
+        setLoading(false);
+      })
+      .catch(error => {
+        console.error('Error fetching NFTs:', error);
+        setError(error.message);
+        setLoading(false);
+      });
+  }, []);
 
   const handlePlayerSelect = (player: Player) => {
     if (selectedPlayers.find(p => p.id === player.id)) {
       setSelectedPlayers(selectedPlayers.filter(p => p.id !== player.id));
     } else if (selectedPlayers.length < 5) {
+      const playersFromSameTeam = selectedPlayers.filter(p => p.team === player.team).length;
+      if (playersFromSameTeam >= 2) {
+        alert(`You can only select up to 2 players from ${player.team}.`);
+        return;
+      }
       setSelectedPlayers([...selectedPlayers, player]);
     }
   };
@@ -66,9 +98,48 @@ const TeamBuilder: React.FC = () => {
       positions.filter(p => p === 'Batsman').length >= 2 &&
       positions.filter(p => p === 'Bowler').length >= 2 &&
       positions.filter(p => p === 'All-rounder').length >= 1 &&
-      new Set(teams).size >= 3 // At least 3 different teams
+      new Set(teams).size >= 3
     );
   };
+
+  const calculateTeamPower = () => {
+    const rarityBoost: { [key in PlayerRarity]: number } = {
+      legendary: 1.55,
+      epic: 1.35,
+      rare: 1.15,
+      common: 1.0,
+    };
+
+    return selectedPlayers.reduce((total, player) => {
+      const basePower = player.stats.average || 0;
+      const boost = rarityBoost[player.rarity] || 1.0;
+      return total + basePower * boost;
+    }, 0).toFixed(0);
+  };
+
+  const handleSubmitTeam = () => {
+    const teamDetails = selectedPlayers.map(player => `${player.name} (${player.position})`).join(', ');
+    alert(`Team Submitted!\nPlayers: ${teamDetails}\nTeam Power: ${calculateTeamPower()}`);
+    setSelectedPlayers([]); // Reset the team
+  };
+
+  if (loading) {
+    return <div className="text-white text-center">Loading your players...</div>;
+  }
+
+  if (error) {
+    return (
+      <div className="text-red-500 text-center">
+        <p>Error: {error}</p>
+        <button 
+          className="btn btn-primary mt-2"
+          onClick={() => window.location.reload()}
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto">
@@ -154,7 +225,7 @@ const TeamBuilder: React.FC = () => {
               <h3 className="text-lg font-bold text-white">Team Preview</h3>
               <div className="flex items-center gap-2">
                 <Trophy size={16} className="text-yellow-400" />
-                <span className="text-sm text-yellow-400">Power: 450</span>
+                <span className="text-sm text-yellow-400">Power: {calculateTeamPower()}</span>
               </div>
             </div>
 
@@ -197,6 +268,7 @@ const TeamBuilder: React.FC = () => {
                   : 'bg-slate-700 text-slate-400 cursor-not-allowed'
               }`}
               disabled={!isTeamValid()}
+              onClick={isTeamValid() ? handleSubmitTeam : undefined}
             >
               {isTeamValid() ? (
                 <>

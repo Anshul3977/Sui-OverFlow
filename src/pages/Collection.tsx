@@ -1,113 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Search, Filter, Ticket as CricketBat, TrendingUp } from 'lucide-react';
 import PlayerCard, { PlayerRarity } from '../components/PlayerCard';
-
-// Mock data
-const mockPlayers = [
-  {
-    id: '1',
-    name: 'Virat Kohli',
-    team: 'Royal Challengers',
-    position: 'Batsman',
-    image: 'https://images.pexels.com/photos/3628912/pexels-photo-3628912.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
-    rarity: 'legendary' as PlayerRarity,
-    stats: {
-      runs: 874,
-      average: 49.8,
-      catches: 12
-    }
-  },
-  {
-    id: '2',
-    name: 'Jasprit Bumrah',
-    team: 'Mumbai Indians',
-    position: 'Bowler',
-    image: 'https://images.pexels.com/photos/15799366/pexels-photo-15799366/free-photo-of-cricket-bowler-about-to-release-the-ball.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
-    rarity: 'rare' as PlayerRarity,
-    stats: {
-      wickets: 28,
-      average: 22.3
-    }
-  },
-  {
-    id: '3',
-    name: 'Jos Buttler',
-    team: 'Rajasthan Royals',
-    position: 'Wicket-keeper',
-    image: 'https://images.pexels.com/photos/15799367/pexels-photo-15799367/free-photo-of-a-cricket-batsman-with-his-bat-up.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
-    rarity: 'rare' as PlayerRarity,
-    stats: {
-      runs: 723,
-      average: 45.2,
-      catches: 18
-    }
-  },
-  {
-    id: '4',
-    name: 'Rohit Sharma',
-    team: 'Mumbai Indians',
-    position: 'Batsman',
-    image: 'https://images.pexels.com/photos/9815925/pexels-photo-9815925.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
-    rarity: 'legendary' as PlayerRarity,
-    stats: {
-      runs: 812,
-      average: 47.6,
-      catches: 9
-    }
-  },
-  {
-    id: '5',
-    name: 'Rashid Khan',
-    team: 'Gujarat Titans',
-    position: 'Bowler',
-    image: 'https://images.pexels.com/photos/11724894/pexels-photo-11724894.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
-    rarity: 'rare' as PlayerRarity,
-    stats: {
-      wickets: 32,
-      average: 18.7
-    }
-  },
-  {
-    id: '6',
-    name: 'KL Rahul',
-    team: 'Lucknow Supergiants',
-    position: 'Batsman',
-    image: 'https://images.pexels.com/photos/9815886/pexels-photo-9815886.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
-    rarity: 'common' as PlayerRarity,
-    stats: {
-      runs: 684,
-      average: 42.3,
-      catches: 4
-    }
-  },
-  {
-    id: '7',
-    name: 'Hardik Pandya',
-    team: 'Mumbai Indians',
-    position: 'All-rounder',
-    image: 'https://images.pexels.com/photos/11724972/pexels-photo-11724972.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
-    rarity: 'common' as PlayerRarity,
-    stats: {
-      runs: 428,
-      wickets: 14,
-      average: 31.2
-    }
-  },
-  {
-    id: '8',
-    name: 'Kane Williamson',
-    team: 'Sunrisers Hyderabad',
-    position: 'Batsman',
-    image: 'https://images.pexels.com/photos/3866505/pexels-photo-3866505.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
-    rarity: 'common' as PlayerRarity,
-    stats: {
-      runs: 546,
-      average: 38.9,
-      catches: 7
-    }
-  }
-];
 
 const Collection: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -115,41 +9,135 @@ const Collection: React.FC = () => {
   const [filterPosition, setFilterPosition] = useState<string | 'all'>('all');
   const [sortBy, setSortBy] = useState<string>('default');
   const [showFilters, setShowFilters] = useState(false);
+  const [players, setPlayers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Filter and sort the players
-  const filteredPlayers = mockPlayers.filter(player => {
-    // Search filter
-    if (searchQuery && !player.name.toLowerCase().includes(searchQuery.toLowerCase())) {
-      return false;
-    }
+  useEffect(() => {
+    const address = '0x8913ee17391e7d92d11221bf571c8ef7f51820f5ff08b3a44f3f3e7b5a9da0e1';
+    fetch(`http://localhost:3000/nfts/${address}`)
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+        return response.json();
+      })
+      .then(data => {
+        console.log('Fetched NFTs:', data);
+        const mappedPlayers = data.map((nft: any) => {
+          const team = nft.name.includes('Rohit') || nft.name.includes('Jasprit') ? 'Mumbai Indians' : 
+                      nft.name.includes('Rishabh') ? 'Delhi Capitals' : 
+                      nft.name.includes('Ravindra') ? 'Chennai Super Kings' : 
+                      nft.name.includes('MS Dhoni') ? 'Chennai Super Kings' : 
+                      'Sunrisers Hyderabad';
+
+          const position = nft.stats > 50 ? 'Bowler' : 
+                          nft.stats > 45 ? 'Batsman' : 
+                          'Wicket-keeper';
+
+          const isJadeja = nft.name.includes('Ravindra');
+          const runs = isJadeja ? 300 : (position === 'Batsman' || position === 'Wicket-keeper' ? Math.round(nft.stats * 10) : 0);
+
+          return {
+            id: nft.objectId,
+            name: nft.name.replace(' NFT', ''),
+            team: team,
+            position: position,
+            image: nft.image_url,
+            rarity: nft.rarity.toLowerCase() as PlayerRarity,
+            stats: {
+              runs: runs,
+              wickets: position === 'Bowler' ? Math.round(nft.stats / 2) : 0,
+              catches: position === 'Wicket-keeper' ? Math.round(nft.stats / 3) : Math.round(nft.stats / 5),
+              average: position === 'Batsman' || position === 'Wicket-keeper' ? nft.stats : 
+                       position === 'Bowler' ? nft.stats / 2 : 0,
+            }
+          };
+        });
+        console.log('Mapped Players:', mappedPlayers);
+        setPlayers(mappedPlayers);
+        setLoading(false);
+      })
+      .catch(error => {
+        console.error('Error fetching NFTs:', error);
+        setError(error.message);
+        setLoading(false);
+      });
+  }, []);
+
+  const draftNewCard = () => {
+    const playerNames = ['Virat Kohli', 'KL Rahul', 'Suryakumar Yadav', 'Hardik Pandya', 'Yuzvendra Chahal'];
+    const teams = ['Royal Challengers Bangalore', 'Lucknow Super Giants', 'Mumbai Indians', 'Gujarat Titans', 'Rajasthan Royals'];
+    const positions = ['Batsman', 'Bowler', 'Wicket-keeper', 'All-rounder'];
+    const rarities: PlayerRarity[] = ['common', 'rare', 'epic', 'legendary'];
+
+    const randomPlayer = playerNames[Math.floor(Math.random() * playerNames.length)];
+    const randomTeam = teams[Math.floor(Math.random() * teams.length)];
+    const randomPosition = positions[Math.floor(Math.random() * positions.length)];
+    const randomRarity = rarities[Math.floor(Math.random() * rarities.length)];
+
+    const baseStats = Math.floor(Math.random() * (70 - 40 + 1)) + 40; // Random stats between 40 and 70
+    const newCard = {
+      id: `mock_${Date.now()}`,
+      name: randomPlayer,
+      team: randomTeam,
+      position: randomPosition,
+      image: `https://example.com/${randomPlayer.toLowerCase().replace(' ', '-')}.jpg`,
+      rarity: randomRarity,
+      stats: {
+        runs: randomPosition === 'Batsman' || randomPosition === 'Wicket-keeper' || randomPosition === 'All-rounder' 
+              ? Math.round(baseStats * 10) : 0,
+        wickets: randomPosition === 'Bowler' || randomPosition === 'All-rounder' 
+                 ? Math.round(baseStats / 2) : 0,
+        catches: randomPosition === 'Wicket-keeper' ? Math.round(baseStats / 3) : Math.round(baseStats / 5),
+        average: randomPosition === 'Batsman' || randomPosition === 'Wicket-keeper' ? baseStats : 
+                 randomPosition === 'Bowler' ? baseStats / 2 : baseStats,
+      }
+    };
+
+    setPlayers([...players, newCard]);
+    alert(`Successfully drafted ${randomPlayer}!`);
+  };
+
+  const filteredPlayers = players.filter(player => {
+    console.log('Filtering player:', player);
+    const searchMatch = !searchQuery || 
+      player.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (player.name + ' NFT').toLowerCase().includes(searchQuery.toLowerCase());
     
-    // Rarity filter
-    if (filterRarity !== 'all' && player.rarity !== filterRarity) {
-      return false;
-    }
-    
-    // Position filter
-    if (filterPosition !== 'all' && player.position !== filterPosition) {
-      return false;
-    }
-    
-    return true;
+    const rarityMatch = filterRarity === 'all' || player.rarity === filterRarity;
+    const positionMatch = filterPosition === 'all' || player.position === filterPosition;
+
+    return searchMatch && rarityMatch && positionMatch;
   }).sort((a, b) => {
-    // Sorting
     switch (sortBy) {
       case 'name':
         return a.name.localeCompare(b.name);
       case 'rarity':
-        // Sort by rarity (legendary > rare > common)
-        const rarityOrder = { legendary: 0, rare: 1, common: 2 };
-        return rarityOrder[a.rarity] - rarityOrder[b.rarity];
+        const rarityOrder: { [key: string]: number } = { legendary: 0, epic: 1, rare: 2, common: 3 };
+        const aRarity = a.rarity in rarityOrder ? rarityOrder[a.rarity] : 999;
+        const bRarity = b.rarity in rarityOrder ? rarityOrder[b.rarity] : 999;
+        return aRarity - bRarity;
       default:
         return 0;
     }
   });
 
+  console.log('Filtered Players:', filteredPlayers);
+
   const positions = ['Batsman', 'Bowler', 'Wicket-keeper', 'All-rounder'];
-  const rarities = ['legendary', 'rare', 'common'];
+  const rarities = ['legendary', 'epic', 'rare', 'common'];
+
+  const totalValue = players.reduce((sum, player) => {
+    const value = player.rarity === 'legendary' ? 20 : 
+                  player.rarity === 'epic' ? 15 : 
+                  player.rarity === 'rare' ? 10 : 5;
+    return sum + value;
+  }, 0);
+
+  const collectionPower = players.reduce((sum, player) => sum + player.stats.average, 0);
+  const teamsRepresented = new Set(players.map(player => player.team)).size;
+  const legendaryCount = players.filter(p => p.rarity === 'legendary').length;
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -161,6 +149,24 @@ const Collection: React.FC = () => {
       }
     }
   };
+
+  if (loading) {
+    return <div className="text-white text-center">Loading your collection...</div>;
+  }
+
+  if (error) {
+    return (
+      <div className="text-red-500 text-center">
+        <p>Error: {error}</p>
+        <button 
+          className="btn btn-primary mt-2"
+          onClick={() => window.location.reload()}
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto">
@@ -292,14 +298,14 @@ const Collection: React.FC = () => {
       <div className="flex justify-between items-center mb-6">
         <p className="text-slate-400">{filteredPlayers.length} cards found</p>
         <div className="flex gap-2">
-          <button className="btn btn-primary">
+          <button className="btn btn-primary" onClick={draftNewCard}>
             <CricketBat size={18} />
             <span>Draft New Card</span>
           </button>
         </div>
       </div>
 
-      {filteredPlayers.length === 0 ? (
+      {filteredPlayers.length === 0 && !loading ? (
         <div className="bg-slate-800 rounded-xl p-8 text-center border border-slate-700">
           <div className="flex justify-center mb-4">
             <CricketBat size={48} className="text-slate-600" />
@@ -348,25 +354,25 @@ const Collection: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="bg-slate-700 rounded-lg p-4">
             <p className="text-sm text-slate-400 mb-1">Total Value</p>
-            <p className="text-2xl font-bold text-white">65.2 SUI</p>
+            <p className="text-2xl font-bold text-white">{totalValue.toFixed(1)} SUI</p>
           </div>
           
           <div className="bg-slate-700 rounded-lg p-4">
             <p className="text-sm text-slate-400 mb-1">Legendary Cards</p>
             <p className="text-2xl font-bold text-white">
-              {mockPlayers.filter(p => p.rarity === 'legendary').length} / {mockPlayers.length}
+              {legendaryCount} / {players.length}
             </p>
           </div>
           
           <div className="bg-slate-700 rounded-lg p-4">
             <p className="text-sm text-slate-400 mb-1">Teams Represented</p>
-            <p className="text-2xl font-bold text-white">5</p>
+            <p className="text-2xl font-bold text-white">{teamsRepresented}</p>
           </div>
           
           <div className="bg-slate-700 rounded-lg p-4">
             <p className="text-sm text-slate-400 mb-1">Collection Power</p>
             <div className="flex items-center">
-              <p className="text-2xl font-bold text-white">876</p>
+              <p className="text-2xl font-bold text-white">{collectionPower.toFixed(0)}</p>
               <span className="ml-2 text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded">+12%</span>
             </div>
           </div>
