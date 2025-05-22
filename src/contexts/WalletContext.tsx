@@ -10,7 +10,7 @@ interface WalletContextType {
   userAddress: string;
   showConnectModal: boolean;
   setShowConnectModal: (show: boolean) => void;
-  refreshBalance: () => void; // Add refreshBalance method
+  refreshBalance: () => Promise<void>;
 }
 
 const WalletContext = createContext<WalletContextType>({
@@ -21,7 +21,7 @@ const WalletContext = createContext<WalletContextType>({
   userAddress: '',
   showConnectModal: false,
   setShowConnectModal: () => {},
-  refreshBalance: () => {},
+  refreshBalance: async () => {},
 });
 
 export const useWallet = () => useContext(WalletContext);
@@ -68,18 +68,13 @@ const WalletContextInner: React.FC<WalletContextInnerProps> = ({
   const [balance, setBalance] = useState<number>(0);
   const [userAddress, setUserAddress] = useState<string>('');
 
-  const fetchBalance = async (address: string) => {
+  const fetchBalanceFromBackend = async (address: string) => {
     try {
-      const balanceData = await suiClient.getBalance({ owner: address });
-      if (balanceData && 'totalBalance' in balanceData) {
-        const balanceInSui = Number(balanceData.totalBalance) / 1_000_000_000;
-        setBalance(Number.isFinite(balanceInSui) ? balanceInSui : 0);
-      } else {
-        console.error('Invalid balance data:', balanceData);
-        setBalance(0);
-      }
+      const response = await fetch(`http://localhost:3000/user/${address}`);
+      const data = await response.json();
+      setBalance(data.balance || 0);
     } catch (error) {
-      console.error('Error fetching balance:', error);
+      console.error('Error fetching balance from backend:', error);
       setBalance(0);
     }
   };
@@ -89,13 +84,13 @@ const WalletContextInner: React.FC<WalletContextInnerProps> = ({
       const address = walletKit.currentAccount.address;
       setConnected(true);
       setUserAddress(address);
-      fetchBalance(address);
+      fetchBalanceFromBackend(address);
     } else {
       setConnected(false);
       setUserAddress('');
       setBalance(0);
     }
-  }, [walletKit.currentAccount, suiClient]);
+  }, [walletKit.currentAccount]);
 
   const connectWallet = () => {
     setShowConnectModal(true);
@@ -115,9 +110,9 @@ const WalletContextInner: React.FC<WalletContextInnerProps> = ({
     setShowConnectModal(false);
   };
 
-  const refreshBalance = () => {
+  const refreshBalance = async () => {
     if (userAddress) {
-      fetchBalance(userAddress);
+      await fetchBalanceFromBackend(userAddress);
     }
   };
 

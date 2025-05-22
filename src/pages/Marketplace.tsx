@@ -4,6 +4,7 @@ import { Search, Filter, TrendingUp, ArrowUpDown, Tag } from 'lucide-react';
 import MarketplaceCard from '../components/MarketplaceCard';
 import { useWallet } from '../contexts/WalletContext';
 import { useWalletKit } from '@mysten/wallet-kit';
+import { TransactionBlock } from '@mysten/sui.js/transactions';
 
 interface Listing {
   objectId: string;
@@ -18,7 +19,7 @@ interface Listing {
 
 const Marketplace: React.FC = () => {
   const { connected, userAddress, balance, refreshBalance } = useWallet();
-  const walletKit = useWalletKit();
+  const { signAndExecuteTransactionBlock } = useWalletKit();
   const [searchQuery, setSearchQuery] = useState('');
   const [filterRarity, setFilterRarity] = useState<'all' | 'legendary' | 'rare' | 'common'>('all');
   const [filterPosition, setFilterPosition] = useState<string>('all');
@@ -37,6 +38,15 @@ const Marketplace: React.FC = () => {
         setListings([]);
       });
   }, []);
+
+  // Helper function to validate and normalize object ID
+  const normalizeObjectId = (objectId: string): string => {
+    const cleanId = objectId.replace(/^0x/, '');
+    if (cleanId.length < 64) {
+      return '0x' + cleanId.padEnd(64, '0');
+    }
+    return '0x' + cleanId;
+  };
 
   const handleBuy = async (listing: Listing) => {
     setError(null);
@@ -57,30 +67,75 @@ const Marketplace: React.FC = () => {
     }
 
     try {
-      const response = await fetch('http://localhost:3000/purchase-nft', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ buyerAddress: userAddress, objectId: listing.objectId }),
+      const txb = new TransactionBlock();
+      
+      // Calculate price in MIST (SUI's smallest unit)
+      const priceInMist = Math.round(listing.price * 1_000_000_000);
+      
+      // Split coins from gas for payment
+      const [coin] = txb.splitCoins(txb.gas, [txb.pure(priceInMist)]);
+      
+      // Normalize the seller address
+      const normalizedSeller = listing.seller.startsWith('0x') 
+        ? listing.seller 
+        : '0x' + listing.seller.padStart(64, '0');
+      
+      // Transfer payment to seller
+      txb.transferObjects([coin], txb.pure(normalizedSeller));
+
+      // Since the NFT doesn't exist on the blockchain, we skip the NFT transfer
+      // In a real implementation, you'd transfer the NFT here:
+      // txb.transferObjects([txb.object(listing.objectId)], txb.pure(userAddress));
+
+      console.log('Executing transaction for NFT:', listing.objectId);
+      console.log('Payment amount (MIST):', priceInMist);
+      console.log('Seller address:', normalizedSeller);
+
+      // Execute the transaction
+      const result = await signAndExecuteTransactionBlock({
+        transactionBlock: txb,
+        options: { 
+          showEffects: true,
+          showEvents: true,
+          showObjectChanges: true,
+        },
       });
 
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to create purchase transaction');
-      }
-
-      const { transaction } = data;
-      const result = await walletKit.signAndExecuteTransactionBlock({
-        transactionBlock: transaction,
-      });
-
-      if (result) {
-        setSuccess(`Successfully purchased ${listing.name} for ${listing.price} SUI!`);
+      if (result && result.digest) {
+        setSuccess(`Successfully purchased ${listing.name} for ${listing.price} SUI! Transaction ID: ${result.digest}`);
         setListings(listings.filter((l) => l.objectId !== listing.objectId));
-        refreshBalance();
+        
+        // Update backend about the purchase to keep it in sync
+        try {
+          await fetch('http://localhost:3000/confirm-purchase', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              buyerAddress: userAddress, 
+              objectId: listing.objectId,
+              transactionId: result.digest
+            }),
+          });
+        } catch (backendError) {
+          console.warn('Backend update failed, but transaction succeeded:', backendError);
+        }
+        
+        await refreshBalance();
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error purchasing NFT:', error);
-      setError('Failed to purchase NFT. Please try again.');
+      
+      if (error.message?.includes('Insufficient')) {
+        setError('Insufficient SUI balance for this transaction.');
+      } else if (error.message?.includes('rejected')) {
+        setError('Transaction was rejected by user.');
+      } else if (error.message?.includes('Invalid input')) {
+        setError('Invalid NFT object ID. This NFT may not exist on the blockchain.');
+      } else if (error.message?.includes('object')) {
+        setError('NFT may no longer be available or owned by seller.');
+      } else {
+        setError(error.message || 'Failed to purchase NFT. Please try again.');
+      }
     }
   };
 
@@ -145,13 +200,15 @@ const Marketplace: React.FC = () => {
       </div>
 
       {error && (
-        <div className="mb-4 p-4 bg-red-600 text-white rounded-lg">
-          {error}
-        </div>
+        <div className="mb-4 p-4 bg-red-600 text-white rounded-lg">{error}</div>
       )}
       {success && (
-        <div className="mb-4 p-4 bg-green-600 text-white rounded-lg">
-          {success}
+        <div className="mb-4 p-4 bg-green-600 text-white rounded-lg">{success}</div>
+      )}
+
+      {!connected && (
+        <div className="mb-4 p-4 bg-yellow-600 text-white rounded-lg">
+          Please connect your wallet to purchase NFTs from the marketplace.
         </div>
       )}
 
@@ -162,7 +219,10 @@ const Marketplace: React.FC = () => {
       >
         <div className="flex flex-col md:flex-row justify-between gap-4">
           <div className="relative flex-1">
-            <Search size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-500" />
+            <Search
+              size={18}
+              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-500"
+            />
             <input
               type="text"
               placeholder="Search players..."
@@ -264,28 +324,40 @@ const Marketplace: React.FC = () => {
 
       <div className="flex justify-between items-center mb-6">
         <p className="text-slate-400">{filteredListings.length} listings found</p>
-        <button className="btn btn-primary">
-          <Tag size={18} />
-          <span>List Card for Sale</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <div className="bg-yellow-600 text-white px-3 py-1 rounded-full text-sm">
+            Demo Mode
+          </div>
+          <button className="btn btn-primary">
+            <Tag size={18} />
+            <span>List Card for Sale</span>
+          </button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-8">
-        {filteredListings.map((listing) => (
-          <MarketplaceCard
-            key={listing.objectId}
-            id={listing.objectId}
-            name={listing.name}
-            team={listing.team}
-            position={listing.position}
-            image={listing.image}
-            rarity={listing.rarity}
-            price={listing.price}
-            seller={listing.seller}
-            onBuy={() => handleBuy(listing)}
-          />
-        ))}
-      </div>
+      {filteredListings.length === 0 ? (
+        <div className="text-center py-12">
+          <p className="text-slate-400 text-lg">No NFTs found matching your criteria</p>
+          <p className="text-slate-500 mt-2">Try adjusting your search or filters</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-8">
+          {filteredListings.map((listing) => (
+            <MarketplaceCard
+              key={listing.objectId}
+              id={listing.objectId}
+              name={listing.name}
+              team={listing.team}
+              position={listing.position}
+              image={listing.image}
+              rarity={listing.rarity}
+              price={listing.price}
+              seller={listing.seller}
+              onBuy={() => handleBuy(listing)}
+            />
+          ))}
+        </div>
+      )}
 
       <motion.div
         className="bg-slate-800 rounded-xl p-6 border border-slate-700"
@@ -321,6 +393,15 @@ const Marketplace: React.FC = () => {
             <p className="text-2xl font-bold text-white">156</p>
             <span className="text-xs text-green-400">+3.2%</span>
           </div>
+        </div>
+
+        <div className="mt-6 p-4 bg-blue-900/20 border border-blue-500/30 rounded-lg">
+          <h4 className="text-blue-400 font-semibold mb-2">Demo Notice</h4>
+          <p className="text-slate-300 text-sm">
+            This marketplace is currently in demo mode. The NFT purchases simulate payment transactions only. 
+            In a production environment, this would integrate with a proper marketplace smart contract 
+            that handles NFT transfers atomically with payments.
+          </p>
         </div>
       </motion.div>
     </div>

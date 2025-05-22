@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Ticket as CricketBat, Trophy, Wallet, Users, TrendingUp, ArrowRight, Calendar } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -8,79 +8,47 @@ import LeagueCard from '../components/LeagueCard';
 import { useWallet } from '../contexts/WalletContext';
 
 const Home: React.FC = () => {
-  const { balance } = useWallet();
+  const { balance, connected, userAddress } = useWallet();
+  const [userData, setUserData] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  // Mock data for featured cards
-  const featuredCards = [
-    {
-      id: '1',
-      name: 'Virat Kohli',
-      team: 'Royal Challengers',
-      position: 'Batsman',
-      image: 'https://images.pexels.com/photos/3628912/pexels-photo-3628912.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
-      rarity: 'legendary' as const,
-      stats: {
-        runs: 874,
-        average: 49.8,
-        catches: 12
-      }
-    },
-    {
-      id: '2',
-      name: 'Jasprit Bumrah',
-      team: 'Mumbai Indians',
-      position: 'Bowler',
-      image: 'https://images.pexels.com/photos/15799366/pexels-photo-15799366/free-photo-of-cricket-bowler-about-to-release-the-ball.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
-      rarity: 'rare' as const,
-      stats: {
-        wickets: 28,
-        average: 22.3
-      }
-    },
-    {
-      id: '3',
-      name: 'Jos Buttler',
-      team: 'Rajasthan Royals',
-      position: 'Wicket-keeper',
-      image: 'https://images.pexels.com/photos/15799367/pexels-photo-15799367/free-photo-of-a-cricket-batsman-with-his-bat-up.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
-      rarity: 'rare' as const,
-      stats: {
-        runs: 723,
-        average: 45.2,
-        catches: 18
-      }
-    },
-  ];
-
-  // Mock data for active leagues
-  const activeLeagues = [
-    {
-      id: '1',
-      name: 'IPL Fantasy Week 6',
-      entryFee: 0.5,
-      prizePool: 55,
-      participants: {
-        current: 87,
-        max: 100
-      },
-      startDate: 'May 12, 2025',
-      endDate: 'May 18, 2025',
-      isActive: true,
-    },
-    {
-      id: '2',
-      name: 'Champions League T20',
-      entryFee: 1.2,
-      prizePool: 150,
-      participants: {
-        current: 62,
-        max: 200
-      },
-      startDate: 'May 20, 2025',
-      endDate: 'May 27, 2025',
-      isActive: false,
+  // Fetch user data
+  useEffect(() => {
+    if (connected && userAddress) {
+      fetch(`http://localhost:3000/user/${userAddress}`)
+        .then((res) => {
+          if (!res.ok) {
+            throw new Error(`HTTP error! Status: ${res.status}`);
+          }
+          return res.json();
+        })
+        .then((data) => {
+          console.log('Fetched user data for dashboard:', data);
+          setUserData(data);
+        })
+        .catch((error) => {
+          console.error('Error fetching user data:', error);
+          setError('Failed to load dashboard data. Please try again.');
+        });
     }
-  ];
+  }, [connected, userAddress]);
+
+  // Calculate dashboard stats dynamically
+  const ownedNFTs = userData?.ownedNFTs || [];
+  const leagues = userData?.leagues || [];
+  const activeTeams = leagues.filter((league: any) => league.joined && league.isActive).length;
+  const leaguesJoined = leagues.filter((league: any) => league.joined).length;
+
+  // Filter active or upcoming leagues
+  const activeLeagues = leagues.filter((league: any) => {
+    const now = new Date();
+    const startDate = new Date(league.startDate);
+    const endDate = new Date(league.endDate);
+    return startDate <= now && now <= endDate; // Active leagues
+  });
+
+  // Select featured players (e.g., first 3 NFTs)
+  const featuredPlayers = ownedNFTs.slice(0, 3);
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -101,6 +69,24 @@ const Home: React.FC = () => {
     }
   };
 
+  if (error) {
+    return (
+      <div className="max-w-7xl mx-auto">
+        <div className="mb-4 p-4 bg-red-600 text-white rounded-lg">
+          {error}
+        </div>
+      </div>
+    );
+  }
+
+  if (!userData) {
+    return (
+      <div className="max-w-7xl mx-auto text-white text-center">
+        Loading dashboard...
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-7xl mx-auto">
       <motion.div
@@ -117,26 +103,26 @@ const Home: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <DashboardStat 
             title="My Collection"
-            value="8 Cards"
+            value={`${ownedNFTs.length} Cards`}
             icon={<CricketBat size={20} className="text-indigo-400" />}
             bgClass="bg-slate-800 bg-gradient-to-br from-slate-800 to-slate-700"
           />
           <DashboardStat 
             title="Active Teams"
-            value="2"
+            value={activeTeams}
             icon={<Users size={20} className="text-emerald-400" />}
             bgClass="bg-slate-800 bg-gradient-to-br from-slate-800 to-slate-700"
           />
           <DashboardStat 
             title="Leagues Joined"
-            value="3"
+            value={leaguesJoined}
             icon={<Trophy size={20} className="text-yellow-400" />}
-            change={{ value: 50, isPositive: true }}
+            change={{ value: 50, isPositive: true }} // This can be made dynamic later
             bgClass="bg-slate-800 bg-gradient-to-br from-slate-800 to-slate-700"
           />
           <DashboardStat 
             title="Wallet Balance"
-            value={`${balance} SUI`}
+            value={`${balance.toFixed(2)} SUI`}
             icon={<Wallet size={20} className="text-blue-400" />}
             bgClass="bg-slate-800 bg-gradient-to-br from-slate-800 to-slate-700"
           />
@@ -153,14 +139,25 @@ const Home: React.FC = () => {
           </div>
           
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {activeLeagues.map((league) => (
-              <LeagueCard 
-                key={league.id}
-                {...league}
-                isJoined={league.id === '1'}
-                onJoin={() => console.log(`Join league ${league.id}`)}
-              />
-            ))}
+            {activeLeagues.length > 0 ? (
+              activeLeagues.map((league: any) => (
+                <LeagueCard 
+                  key={league.id}
+                  id={league.id}
+                  name={league.name}
+                  entryFee={league.entryFee}
+                  prizePool={league.prizePool}
+                  participants={league.participants}
+                  startDate={league.startDate}
+                  endDate={league.endDate}
+                  isActive={league.isActive}
+                  isJoined={league.joined}
+                  onJoin={() => console.log(`Join league ${league.id}`)}
+                />
+              ))
+            ) : (
+              <p className="text-slate-400">No active leagues at the moment.</p>
+            )}
           </div>
         </div>
         
@@ -184,7 +181,7 @@ const Home: React.FC = () => {
                 <div className="flex justify-between items-center text-white">
                   <div className="flex items-center">
                     <Calendar size={16} className="mr-2" />
-                    <span className="text-sm">May 14, 2025</span>
+                    <span className="text-sm">May 24, 2025</span>
                   </div>
                   <span className="text-xs bg-indigo-600 px-2 py-1 rounded">8:00 PM IST</span>
                 </div>
@@ -192,17 +189,17 @@ const Home: React.FC = () => {
             </div>
             
             <div className="p-4">
-              <h3 className="text-white font-bold mb-3">Mumbai Indians vs Chennai Super Kings</h3>
+              <h3 className="text-white font-bold mb-3">Delhi Capitals vs Kolkata Knight Riders</h3>
               
               <div className="flex justify-between items-center mb-4">
                 <div className="flex items-center">
-                  <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-xs mr-2">MI</div>
-                  <span className="text-slate-200">Mumbai</span>
+                  <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-xs mr-2">DC</div>
+                  <span className="text-slate-200">Delhi</span>
                 </div>
                 <span className="text-slate-400 text-sm">vs</span>
                 <div className="flex items-center">
-                  <span className="text-slate-200">Chennai</span>
-                  <div className="w-8 h-8 rounded-full bg-yellow-600 flex items-center justify-center text-white font-bold text-xs ml-2">CSK</div>
+                  <span className="text-slate-200">Kolkata</span>
+                  <div className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center text-white font-bold text-xs ml-2">KKR</div>
                 </div>
               </div>
               
@@ -231,13 +228,23 @@ const Home: React.FC = () => {
         </div>
         
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {featuredCards.map((card) => (
-            <PlayerCard 
-              key={card.id}
-              {...card}
-              onClick={() => console.log(`Selected player ${card.id}`)}
-            />
-          ))}
+          {featuredPlayers.length > 0 ? (
+            featuredPlayers.map((card: any) => (
+              <PlayerCard 
+                key={card.objectId}
+                id={card.objectId}
+                name={card.name.replace(' NFT', '')}
+                team={card.team || 'Unknown Team'}
+                position={card.position || 'Unknown Position'}
+                image={card.image || 'https://images.pexels.com/photos/3628912/pexels-photo-3628912.jpeg'}
+                rarity={card.rarity || 'common'}
+                stats={card.stats || { runs: 0, average: 0 }}
+                onClick={() => console.log(`Selected player ${card.objectId}`)}
+              />
+            ))
+          ) : (
+            <p className="text-slate-400">You don’t own any player cards yet. Visit the marketplace to get started!</p>
+          )}
           
           <motion.div 
             className="card bg-slate-800 border border-dashed border-slate-600 flex flex-col items-center justify-center aspect-[3/4] text-center p-6"
